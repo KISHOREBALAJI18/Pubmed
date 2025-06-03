@@ -1,0 +1,7 @@
+streamlit
+biopython
+openai
+requests
+chromadb
+langchain
+langchain-google-genai

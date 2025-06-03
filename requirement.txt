@@ -1,6 +1,7 @@
-Bio 
-openai 
-requests 
-chromadb 
-langchain_google_genai 
--U langchain-community 
+streamlit
+biopython
+openai
+requests
+chromadb
+langchain
+langchain-google-genai

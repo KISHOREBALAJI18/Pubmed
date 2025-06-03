@@ -1,5 +1,3 @@
-pip install Bio openai requests chromadb langchain_google_genai 
-pip install -U langchain-community 
 import streamlit as st
 import requests
 from xml.etree import ElementTree as ET

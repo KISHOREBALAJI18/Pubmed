@@ -2,6 +2,8 @@ streamlit
 biopython
 openai
 requests
+
+# Required for vector store
 chromadb
-langchain
+langchain[chromadb]
 langchain-google-genai

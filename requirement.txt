@@ -1,2 +1,6 @@
-!pip install Bio openai requests chromadb langchain_google_genai 
-!pip install -U langchain-community 
+Bio 
+openai 
+requests 
+chromadb 
+langchain_google_genai 
+-U langchain-community 

@@ -1,6 +1,6 @@
 streamlit
 langchain
-chromadb
+chromadb>=0.4.22
 openai
 tiktoken
 sentence-transformers
@@ -10,5 +10,6 @@ biopython
 langchain
 langchain-google-genai
 langchain-community
-protobuf==3.20.3
+
+
 

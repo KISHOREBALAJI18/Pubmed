@@ -89,11 +89,8 @@ if query:
             google_api_key=GOOGLE_API_KEY
         )
 
-        vector_store = Chroma.from_documents(
-            documents=split_docs,
-            embedding=embeddings,
-            persist_directory=CHROMA_DB_DIR
-        )
+        from chromadb.config import Settings  
+        vector_store = Chroma.from_documents(documents=split_docs,     embedding=embeddings,     persist_directory=CHROMA_DB_DIR,     client_settings=Settings(chroma_db_impl="duckdb+parquet") )
         vector_store.persist()
 
         retriever = vector_store.as_retriever(search_kwargs={"k": 4})

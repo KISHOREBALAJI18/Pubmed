@@ -1,18 +1,8 @@
-# ✅ Streamlit App
-streamlit==1.35.0
-
-# ✅ LangChain + Chroma Vector Store
-langchain==0.2.0
-langchain-community==0.2.0
-langchain-google-genai==1.0.2
-chromadb==0.4.24
-
-# ✅ Gemini + Embeddings
-google-generativeai==0.4.1
-tiktoken==0.7.0
-
-# ✅ Critical Fixes for Crashes
-protobuf==4.25.3
-opentelemetry-api==1.22.0
-opentelemetry-sdk==1.22.0
-opentelemetry-exporter-otlp-proto-grpc==1.22.0
+streamlit
+langchain
+chromadb
+openai
+tiktoken
+sentence-transformers
+python-dotenv
+requests

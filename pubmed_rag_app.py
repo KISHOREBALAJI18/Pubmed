@@ -4,9 +4,10 @@ from xml.etree import ElementTree as ET
 from Bio import Entrez
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
 from langchain.chains import RetrievalQA
-from langchain.vectorstores import Chroma
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
+from chromadb.config import Settings  # ✅ Must be before importing Chroma
+from langchain.vectorstores import Chroma
 import os
 
 # ========== Configuration ==========
@@ -69,7 +70,7 @@ def fetch_all_pubmed_abstracts(query):
                 url = f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"
                 metadata = {"source": url}
                 documents.append(Document(page_content=abstract, metadata=metadata))
-    return documents,count
+    return documents, count
 
 # ========== Streamlit UI ==========
 st.title("PubMed QA System")
@@ -79,7 +80,7 @@ query = st.text_input("🔍 Enter your PubMed search query")
 
 if query:
     with st.spinner("Fetching abstracts and creating vector store..."):
-        docs,total_count = fetch_all_pubmed_abstracts(query)
+        docs, total_count = fetch_all_pubmed_abstracts(query)
         st.info(f"📄 Retrieved {len(docs)} abstracts out of {total_count} total results from NCBI PubMed.")
         splitter = RecursiveCharacterTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
         split_docs = splitter.split_documents(docs)
@@ -89,19 +90,15 @@ if query:
             google_api_key=GOOGLE_API_KEY
         )
 
-        from chromadb.config import Settings
-       from langchain.vectorstores import Chroma
-
-      vector_store = Chroma.from_documents(
-       documents=split_docs,
-       embedding=embeddings,
-        persist_directory="chroma_db",
-       client_settings=Settings(
-         chroma_db_impl="duckdb+parquet",
-         persist_directory="chroma_db"
-          )
-             )
-
+        vector_store = Chroma.from_documents(
+            documents=split_docs,
+            embedding=embeddings,
+            persist_directory=CHROMA_DB_DIR,
+            client_settings=Settings(
+                chroma_db_impl="duckdb+parquet",
+                persist_directory=CHROMA_DB_DIR
+            )
+        )
         vector_store.persist()
 
         retriever = vector_store.as_retriever(search_kwargs={"k": 4})
@@ -110,6 +107,7 @@ if query:
             retriever=retriever,
             return_source_documents=True
         )
+
     st.success("✅ Vector DB created. You can now ask questions!")
 
     user_question = st.text_input("💬 Ask a biomedical question")

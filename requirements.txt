@@ -11,6 +11,18 @@ langchain
 langchain-google-genai
 langchain-community
 protobuf<4.0.0,>=3.20.0
+streamlit
+langchain
+chromadb>=0.4.22
+biopython
+requests
+markdown-it-py
+mdurl
+pygments
+rich
+langchain-google-genai
+protobuf>=3.20.0,<4.0.0
+
 
 
 

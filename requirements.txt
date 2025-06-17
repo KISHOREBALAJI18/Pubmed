@@ -7,3 +7,5 @@ sentence-transformers
 python-dotenv
 requests
 biopython
+langchain
+langchain-google-genai

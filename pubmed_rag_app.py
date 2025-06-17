@@ -4,10 +4,10 @@ from xml.etree import ElementTree as ET
 from Bio import Entrez
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
 from langchain.chains import RetrievalQA
+from langchain.vectorstores import Chroma
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
-from chromadb.config import Settings  # ✅ Must be before importing Chroma
-from langchain.vectorstores import Chroma
+from chromadb.config import Settings
 import os
 
 # ========== Configuration ==========
@@ -82,6 +82,7 @@ if query:
     with st.spinner("Fetching abstracts and creating vector store..."):
         docs, total_count = fetch_all_pubmed_abstracts(query)
         st.info(f"📄 Retrieved {len(docs)} abstracts out of {total_count} total results from NCBI PubMed.")
+
         splitter = RecursiveCharacterTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
         split_docs = splitter.split_documents(docs)
 

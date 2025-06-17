@@ -90,7 +90,7 @@ if query:
             model="models/text-embedding-004",
             google_api_key=GOOGLE_API_KEY
         )
-
+          CHROMA_DB_DIR = "./chroma_db"
         vector_store = Chroma.from_documents(
             documents=split_docs,
             embedding=embeddings,

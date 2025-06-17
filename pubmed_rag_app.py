@@ -26,7 +26,7 @@ model = ChatGoogleGenerativeAI(
     convert_system_message_to_human=True
 )
 
-# ========== Function to fetch abstracts ==========
+# ========== Fetch abstracts ==========
 @st.cache_data(show_spinner=True)
 def fetch_all_pubmed_abstracts(query):
     search_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
@@ -82,7 +82,6 @@ if query:
     with st.spinner("Fetching abstracts and creating vector store..."):
         docs, total_count = fetch_all_pubmed_abstracts(query)
         st.info(f"📄 Retrieved {len(docs)} abstracts out of {total_count} total results from NCBI PubMed.")
-
         splitter = RecursiveCharacterTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
         split_docs = splitter.split_documents(docs)
 
@@ -90,7 +89,7 @@ if query:
             model="models/text-embedding-004",
             google_api_key=GOOGLE_API_KEY
         )
-        CHROMA_DB_DIR = "./chroma_db"
+
         vector_store = Chroma.from_documents(
             documents=split_docs,
             embedding=embeddings,
@@ -108,7 +107,6 @@ if query:
             retriever=retriever,
             return_source_documents=True
         )
-
     st.success("✅ Vector DB created. You can now ask questions!")
 
     user_question = st.text_input("💬 Ask a biomedical question")

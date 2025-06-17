@@ -10,6 +10,7 @@ biopython
 langchain
 langchain-google-genai
 langchain-community
+protobuf<4.0.0,>=3.20.0
 
 
 

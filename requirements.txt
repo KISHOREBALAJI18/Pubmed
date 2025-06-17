@@ -6,3 +6,4 @@ tiktoken
 sentence-transformers
 python-dotenv
 requests
+biopython

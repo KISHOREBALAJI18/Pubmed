@@ -9,3 +9,4 @@ requests
 biopython
 langchain
 langchain-google-genai
+langchain-community

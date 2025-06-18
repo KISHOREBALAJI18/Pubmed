@@ -1,14 +1,14 @@
 import streamlit as st
 import requests
+import time
 from xml.etree import ElementTree as ET
 from Bio import Entrez
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
 from langchain.chains import RetrievalQA
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
-from langchain.vectorstores import FAISS  # ✅ Replacing Chroma
+from langchain.vectorstores import FAISS
 import os
-import pickle
 
 # ========== Configuration ==========
 Entrez.email = "royalkishore37@gmail.com"
@@ -16,9 +16,8 @@ NCBI_API_KEY = "2ddfd213108a19322c52587d698ed1230f08"
 GOOGLE_API_KEY = "AIzaSyCcg8g0xKZkfrt1JAtnzEdXaw7G4OindqY"
 CHUNK_SIZE = 5000
 CHUNK_OVERLAP = 500
-VECTOR_DB_PATH = "faiss_index"
 
-# ========== Initialize Gemini ==========
+# ========== Initialize LLM ==========
 model = ChatGoogleGenerativeAI(
     model="gemini-1.5-flash",
     google_api_key=GOOGLE_API_KEY,
@@ -26,8 +25,20 @@ model = ChatGoogleGenerativeAI(
     convert_system_message_to_human=True
 )
 
-# ========== Fetch PubMed Abstracts ==========
-@st.cache_data(show_spinner=True)
+# ========== Safe request with retry ==========
+def safe_request(url, params, retries=3, delay=2):
+    for i in range(retries):
+        try:
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            return response
+        except Exception as e:
+            if i < retries - 1:
+                time.sleep(delay)
+            else:
+                raise e
+
+# ========== Fetch abstracts ==========
 def fetch_all_pubmed_abstracts(query):
     search_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
     fetch_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
@@ -39,7 +50,8 @@ def fetch_all_pubmed_abstracts(query):
         "retmode": "xml",
         "api_key": NCBI_API_KEY
     }
-    search_response = requests.get(search_url, params=search_params)
+
+    search_response = safe_request(search_url, search_params)
     root = ET.fromstring(search_response.text)
     count = int(root.findtext(".//Count"))
     webenv = root.findtext(".//WebEnv")
@@ -57,7 +69,8 @@ def fetch_all_pubmed_abstracts(query):
             "WebEnv": webenv,
             "api_key": NCBI_API_KEY
         }
-        fetch_response = requests.get(fetch_url, params=fetch_params)
+
+        fetch_response = safe_request(fetch_url, fetch_params)
         fetch_root = ET.fromstring(fetch_response.text)
         articles = fetch_root.findall(".//PubmedArticle")
 
@@ -73,17 +86,20 @@ def fetch_all_pubmed_abstracts(query):
     return documents, count
 
 # ========== Streamlit UI ==========
-st.title("🧠 PubMed QA with Google Gemini (FAISS)")
-st.markdown("Search PubMed, Embed with Gemini, and Ask Questions — Now using FAISS!")
+st.title("PubMed QA System")
+st.markdown("Search PubMed, Embed Results with Google Gemini, and Ask Questions!")
 
 query = st.text_input("🔍 Enter your PubMed search query")
 
 if query:
-    with st.spinner("🔄 Fetching abstracts and building vector index..."):
+    with st.spinner("Fetching abstracts and creating vector store..."):
         docs, total_count = fetch_all_pubmed_abstracts(query)
-        st.info(f"📄 Retrieved {len(docs)} abstracts out of {total_count} total PubMed results.")
+        st.info(f"📄 Retrieved {len(docs)} abstracts out of {total_count} total results.")
 
-        splitter = RecursiveCharacterTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=CHUNK_SIZE,
+            chunk_overlap=CHUNK_OVERLAP
+        )
         split_docs = splitter.split_documents(docs)
 
         embeddings = GoogleGenerativeAIEmbeddings(
@@ -91,30 +107,25 @@ if query:
             google_api_key=GOOGLE_API_KEY
         )
 
-        # ✅ Use FAISS (not Chroma)
         vector_store = FAISS.from_documents(split_docs, embeddings)
-
-        # Optional: Save FAISS index locally
-        with open(VECTOR_DB_PATH, "wb") as f:
-            pickle.dump(vector_store, f)
-
         retriever = vector_store.as_retriever(search_kwargs={"k": 4})
+
         qa_chain = RetrievalQA.from_chain_type(
             llm=model,
             retriever=retriever,
             return_source_documents=True
         )
 
-    st.success("✅ Vector DB ready. You can now ask questions!")
+    st.success("✅ Vector DB created. You can now ask questions!")
 
-    user_question = st.text_input("💬 Ask your biomedical question")
+    user_question = st.text_input("💬 Ask a biomedical question")
 
     if user_question:
-        with st.spinner("💡 Thinking..."):
+        with st.spinner("Thinking..."):
             response = qa_chain({"query": user_question})
-            st.markdown("### 🧠 Answer")
+            st.markdown("### 🔍 Answer")
             st.write(response["result"])
 
             st.markdown("### 📚 Sources")
             for doc in response["source_documents"]:
-                st.markdown(f"- [PubMed Link]({doc.metadata['source']})")
+                st.markdown(f"- [Source]({doc.metadata['source']})")

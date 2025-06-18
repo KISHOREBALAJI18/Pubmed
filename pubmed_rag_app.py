@@ -1,3 +1,4 @@
+
 import streamlit as st
 import requests
 from xml.etree import ElementTree as ET
@@ -7,8 +8,6 @@ from langchain.chains import RetrievalQA
 from langchain.vectorstores import Chroma
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
-from chromadb.config import Settings
-from chromadb import PersistentClient
 import os
 
 # ========== Configuration ==========
@@ -71,19 +70,18 @@ def fetch_all_pubmed_abstracts(query):
                 url = f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"
                 metadata = {"source": url}
                 documents.append(Document(page_content=abstract, metadata=metadata))
-    return documents, count
+    return documents,count
 
 # ========== Streamlit UI ==========
-st.title("🔬 PubMed Biomedical QA System")
-st.markdown("Enter a biomedical search term. The app fetches abstracts from PubMed, builds a vector DB using Chroma (DuckDB), and answers your questions using Gemini!")
+st.title("PubMed QA System")
+st.markdown("Search PubMed, Embed Results with Google Gemini, and Ask Questions!")
 
 query = st.text_input("🔍 Enter your PubMed search query")
 
 if query:
-    with st.spinner("📥 Fetching abstracts and creating vector store..."):
-        docs, total_count = fetch_all_pubmed_abstracts(query)
-        st.info(f"📄 Retrieved {len(docs)} abstracts out of {total_count} total PubMed results.")
-
+    with st.spinner("Fetching abstracts and creating vector store..."):
+        docs,total_count = fetch_all_pubmed_abstracts(query)
+        st.info(f"📄 Retrieved {len(docs)} abstracts out of {total_count} total results from NCBI PubMed.")
         splitter = RecursiveCharacterTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
         split_docs = splitter.split_documents(docs)
 
@@ -92,24 +90,11 @@ if query:
             google_api_key=GOOGLE_API_KEY
         )
 
-        # ✅ Use DuckDB to avoid sqlite3 error on Streamlit Cloud
-        settings = Settings(
-            chroma_db_impl="duckdb+parquet",
+        vector_store = Chroma.from_documents(
+            documents=split_docs,
+            embedding=embeddings,
             persist_directory=CHROMA_DB_DIR
         )
-
-        client = PersistentClient(path=CHROMA_DB_DIR, settings=settings)
-        collection = client.get_or_create_collection("pubmed")
-
-        vector_store = Chroma(
-            client=client,
-            collection_name="pubmed",
-            embedding_function=embeddings,
-            persist_directory=CHROMA_DB_DIR,
-            client_settings=settings
-        )
-
-        vector_store.add_documents(split_docs)
         vector_store.persist()
 
         retriever = vector_store.as_retriever(search_kwargs={"k": 4})
@@ -118,17 +103,19 @@ if query:
             retriever=retriever,
             return_source_documents=True
         )
-
-    st.success("✅ Vector DB ready. You can now ask your biomedical question.")
+    st.success("✅ Vector DB created. You can now ask questions!")
 
     user_question = st.text_input("💬 Ask a biomedical question")
 
     if user_question:
-        with st.spinner("🧠 Thinking..."):
+        with st.spinner("Thinking..."):
             response = qa_chain({"query": user_question})
-            st.markdown("### ✅ Answer")
+            st.markdown("### 🔍 Answer")
             st.write(response["result"])
 
             st.markdown("### 📚 Sources")
             for doc in response["source_documents"]:
                 st.markdown(f"- [Source]({doc.metadata['source']})")
+                
+
+this is my overall code 

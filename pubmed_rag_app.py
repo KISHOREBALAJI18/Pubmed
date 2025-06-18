@@ -90,16 +90,31 @@ if query:
             google_api_key=GOOGLE_API_KEY
         )
 
-        vector_store = Chroma.from_documents(
-            documents=split_docs,
-            embedding=embeddings,
-            persist_directory=CHROMA_DB_DIR,
-            client_settings=Settings(
-                chroma_db_impl="duckdb+parquet",
-                persist_directory=CHROMA_DB_DIR
-            )
-        )
-        vector_store.persist()
+         from chromadb import PersistentClient
+
+         # Step 1: Use DuckDB config
+          settings = Settings(
+                    chroma_db_impl="duckdb+parquet",
+                    persist_directory=CHROMA_DB_DIR
+                   )
+
+          # Step 2: Create client and collection manually
+          client = PersistentClient(path=CHROMA_DB_DIR, settings=settings)
+
+           vector_store = Chroma(
+                 client=client,
+                 collection_name="pubmed",
+                 embedding_function=embeddings,
+                 persist_directory=CHROMA_DB_DIR,
+                 client_settings=settings
+                   )
+
+             # Step 3: Add documents explicitly
+            vector_store.add_documents(split_docs)
+           vector_store.persist()
+
+              )
+    
 
         retriever = vector_store.as_retriever(search_kwargs={"k": 4})
         qa_chain = RetrievalQA.from_chain_type(

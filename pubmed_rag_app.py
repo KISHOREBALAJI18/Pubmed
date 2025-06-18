@@ -6,7 +6,8 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGener
 from langchain.chains import RetrievalQA
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
-from chromadb.config import Settings  # ✅ Must be before importing Chroma
+from chromadb.config import Settings
+from chromadb import PersistentClient
 from langchain.vectorstores import Chroma
 import os
 
@@ -18,7 +19,7 @@ CHROMA_DB_DIR = "./chroma_db"
 CHUNK_SIZE = 5000
 CHUNK_OVERLAP = 500
 
-# ========== Initialize LLM ==========
+# ========== Initialize Gemini Model ==========
 model = ChatGoogleGenerativeAI(
     model="gemini-1.5-flash",
     google_api_key=GOOGLE_API_KEY,
@@ -26,7 +27,7 @@ model = ChatGoogleGenerativeAI(
     convert_system_message_to_human=True
 )
 
-# ========== Function to fetch abstracts ==========
+# ========== Fetch PubMed Abstracts ==========
 @st.cache_data(show_spinner=True)
 def fetch_all_pubmed_abstracts(query):
     search_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
@@ -73,15 +74,16 @@ def fetch_all_pubmed_abstracts(query):
     return documents, count
 
 # ========== Streamlit UI ==========
-st.title("PubMed QA System")
-st.markdown("Search PubMed, Embed Results with Google Gemini, and Ask Questions!")
+st.title("🧠 PubMed QA with Google Gemini")
+st.markdown("Search PubMed, Embed Results with Gemini Embeddings, and Ask Questions!")
 
 query = st.text_input("🔍 Enter your PubMed search query")
 
 if query:
-    with st.spinner("Fetching abstracts and creating vector store..."):
+    with st.spinner("🔄 Fetching abstracts and preparing vector DB..."):
         docs, total_count = fetch_all_pubmed_abstracts(query)
-        st.info(f"📄 Retrieved {len(docs)} abstracts out of {total_count} total results from NCBI PubMed.")
+        st.info(f"📄 Retrieved {len(docs)} abstracts out of {total_count} total PubMed results.")
+
         splitter = RecursiveCharacterTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
         split_docs = splitter.split_documents(docs)
 
@@ -90,31 +92,21 @@ if query:
             google_api_key=GOOGLE_API_KEY
         )
 
-         from chromadb import PersistentClient
-
-         # Step 1: Use DuckDB config
-          settings = Settings(
-                    chroma_db_impl="duckdb+parquet",
-                    persist_directory=CHROMA_DB_DIR
-                   )
-
-          # Step 2: Create client and collection manually
-          client = PersistentClient(path=CHROMA_DB_DIR, settings=settings)
-
-           vector_store = Chroma(
-                 client=client,
-                 collection_name="pubmed",
-                 embedding_function=embeddings,
-                 persist_directory=CHROMA_DB_DIR,
-                 client_settings=settings
-                   )
-
-             # Step 3: Add documents explicitly
-            vector_store.add_documents(split_docs)
-           vector_store.persist()
-
-              )
-    
+        # ✅ Use DuckDB for compatibility with Streamlit Cloud
+        chroma_settings = Settings(
+            chroma_db_impl="duckdb+parquet",
+            persist_directory=CHROMA_DB_DIR
+        )
+        client = PersistentClient(path=CHROMA_DB_DIR, settings=chroma_settings)
+        vector_store = Chroma(
+            client=client,
+            collection_name="pubmed",
+            embedding_function=embeddings,
+            persist_directory=CHROMA_DB_DIR,
+            client_settings=chroma_settings
+        )
+        vector_store.add_documents(split_docs)
+        vector_store.persist()
 
         retriever = vector_store.as_retriever(search_kwargs={"k": 4})
         qa_chain = RetrievalQA.from_chain_type(
@@ -123,16 +115,16 @@ if query:
             return_source_documents=True
         )
 
-    st.success("✅ Vector DB created. You can now ask questions!")
+    st.success("✅ Vector DB created! Ask any biomedical question below.")
 
-    user_question = st.text_input("💬 Ask a biomedical question")
+    user_question = st.text_input("💬 Ask your biomedical question")
 
     if user_question:
-        with st.spinner("Thinking..."):
+        with st.spinner("💡 Generating answer..."):
             response = qa_chain({"query": user_question})
-            st.markdown("### 🔍 Answer")
+            st.markdown("### 🧠 Answer")
             st.write(response["result"])
 
             st.markdown("### 📚 Sources")
             for doc in response["source_documents"]:
-                st.markdown(f"- [Source]({doc.metadata['source']})")
+                st.markdown(f"- [PubMed Link]({doc.metadata['source']})")

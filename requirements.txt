@@ -21,6 +21,7 @@ mdurl
 pygments
 rich
 langchain-google-genai
+faiss-cpu
 protobuf>=3.20.0,<4.0.0
 
 

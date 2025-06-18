@@ -6,20 +6,19 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGener
 from langchain.chains import RetrievalQA
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
-from chromadb.config import Settings
-from chromadb import PersistentClient
-from langchain.vectorstores import Chroma
+from langchain.vectorstores import FAISS  # ✅ Replacing Chroma
 import os
+import pickle
 
 # ========== Configuration ==========
 Entrez.email = "royalkishore37@gmail.com"
 NCBI_API_KEY = "2ddfd213108a19322c52587d698ed1230f08"
 GOOGLE_API_KEY = "AIzaSyCcg8g0xKZkfrt1JAtnzEdXaw7G4OindqY"
-CHROMA_DB_DIR = "./chroma_db"
 CHUNK_SIZE = 5000
 CHUNK_OVERLAP = 500
+VECTOR_DB_PATH = "faiss_index"
 
-# ========== Initialize Gemini Model ==========
+# ========== Initialize Gemini ==========
 model = ChatGoogleGenerativeAI(
     model="gemini-1.5-flash",
     google_api_key=GOOGLE_API_KEY,
@@ -74,13 +73,13 @@ def fetch_all_pubmed_abstracts(query):
     return documents, count
 
 # ========== Streamlit UI ==========
-st.title("🧠 PubMed QA with Google Gemini")
-st.markdown("Search PubMed, Embed Results with Gemini Embeddings, and Ask Questions!")
+st.title("🧠 PubMed QA with Google Gemini (FAISS)")
+st.markdown("Search PubMed, Embed with Gemini, and Ask Questions — Now using FAISS!")
 
 query = st.text_input("🔍 Enter your PubMed search query")
 
 if query:
-    with st.spinner("🔄 Fetching abstracts and preparing vector DB..."):
+    with st.spinner("🔄 Fetching abstracts and building vector index..."):
         docs, total_count = fetch_all_pubmed_abstracts(query)
         st.info(f"📄 Retrieved {len(docs)} abstracts out of {total_count} total PubMed results.")
 
@@ -92,21 +91,12 @@ if query:
             google_api_key=GOOGLE_API_KEY
         )
 
-        # ✅ Use DuckDB for compatibility with Streamlit Cloud
-        chroma_settings = Settings(
-            chroma_db_impl="duckdb+parquet",
-            persist_directory=CHROMA_DB_DIR
-        )
-        client = PersistentClient(path=CHROMA_DB_DIR, settings=chroma_settings)
-        vector_store = Chroma(
-            client=client,
-            collection_name="pubmed",
-            embedding_function=embeddings,
-            persist_directory=CHROMA_DB_DIR,
-            client_settings=chroma_settings
-        )
-        vector_store.add_documents(split_docs)
-        vector_store.persist()
+        # ✅ Use FAISS (not Chroma)
+        vector_store = FAISS.from_documents(split_docs, embeddings)
+
+        # Optional: Save FAISS index locally
+        with open(VECTOR_DB_PATH, "wb") as f:
+            pickle.dump(vector_store, f)
 
         retriever = vector_store.as_retriever(search_kwargs={"k": 4})
         qa_chain = RetrievalQA.from_chain_type(
@@ -115,12 +105,12 @@ if query:
             return_source_documents=True
         )
 
-    st.success("✅ Vector DB created! Ask any biomedical question below.")
+    st.success("✅ Vector DB ready. You can now ask questions!")
 
     user_question = st.text_input("💬 Ask your biomedical question")
 
     if user_question:
-        with st.spinner("💡 Generating answer..."):
+        with st.spinner("💡 Thinking..."):
             response = qa_chain({"query": user_question})
             st.markdown("### 🧠 Answer")
             st.write(response["result"])

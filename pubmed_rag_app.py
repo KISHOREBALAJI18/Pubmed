@@ -8,6 +8,7 @@ from langchain.vectorstores import Chroma
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
 from chromadb.config import Settings
+from chromadb import PersistentClient
 import os
 
 # ========== Configuration ==========
@@ -26,7 +27,7 @@ model = ChatGoogleGenerativeAI(
     convert_system_message_to_human=True
 )
 
-# ========== Fetch abstracts ==========
+# ========== Function to fetch abstracts ==========
 @st.cache_data(show_spinner=True)
 def fetch_all_pubmed_abstracts(query):
     search_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
@@ -73,15 +74,16 @@ def fetch_all_pubmed_abstracts(query):
     return documents, count
 
 # ========== Streamlit UI ==========
-st.title("PubMed QA System")
-st.markdown("Search PubMed, Embed Results with Google Gemini, and Ask Questions!")
+st.title("🔬 PubMed Biomedical QA System")
+st.markdown("Enter a biomedical search term. The app fetches abstracts from PubMed, builds a vector DB using Chroma (DuckDB), and answers your questions using Gemini!")
 
 query = st.text_input("🔍 Enter your PubMed search query")
 
 if query:
-    with st.spinner("Fetching abstracts and creating vector store..."):
+    with st.spinner("📥 Fetching abstracts and creating vector store..."):
         docs, total_count = fetch_all_pubmed_abstracts(query)
-        st.info(f"📄 Retrieved {len(docs)} abstracts out of {total_count} total results from NCBI PubMed.")
+        st.info(f"📄 Retrieved {len(docs)} abstracts out of {total_count} total PubMed results.")
+
         splitter = RecursiveCharacterTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
         split_docs = splitter.split_documents(docs)
 
@@ -90,15 +92,24 @@ if query:
             google_api_key=GOOGLE_API_KEY
         )
 
-        vector_store = Chroma.from_documents(
-            documents=split_docs,
-            embedding=embeddings,
-            persist_directory=CHROMA_DB_DIR,
-            client_settings=Settings(
-                chroma_db_impl="duckdb+parquet",
-                persist_directory=CHROMA_DB_DIR
-            )
+        # ✅ Use DuckDB to avoid sqlite3 error on Streamlit Cloud
+        settings = Settings(
+            chroma_db_impl="duckdb+parquet",
+            persist_directory=CHROMA_DB_DIR
         )
+
+        client = PersistentClient(path=CHROMA_DB_DIR, settings=settings)
+        collection = client.get_or_create_collection("pubmed")
+
+        vector_store = Chroma(
+            client=client,
+            collection_name="pubmed",
+            embedding_function=embeddings,
+            persist_directory=CHROMA_DB_DIR,
+            client_settings=settings
+        )
+
+        vector_store.add_documents(split_docs)
         vector_store.persist()
 
         retriever = vector_store.as_retriever(search_kwargs={"k": 4})
@@ -107,14 +118,15 @@ if query:
             retriever=retriever,
             return_source_documents=True
         )
-    st.success("✅ Vector DB created. You can now ask questions!")
+
+    st.success("✅ Vector DB ready. You can now ask your biomedical question.")
 
     user_question = st.text_input("💬 Ask a biomedical question")
 
     if user_question:
-        with st.spinner("Thinking..."):
+        with st.spinner("🧠 Thinking..."):
             response = qa_chain({"query": user_question})
-            st.markdown("### 🔍 Answer")
+            st.markdown("### ✅ Answer")
             st.write(response["result"])
 
             st.markdown("### 📚 Sources")
